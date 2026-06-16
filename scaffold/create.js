@@ -68,10 +68,24 @@ function copyFile(name) {
   fs.copyFileSync(path.join(SOURCE_DIR, name), path.join(dest, name));
 }
 
+function copyDir(name, filter = () => true) {
+  const src = path.join(SOURCE_DIR, name);
+  const dst = path.join(dest, name);
+  fs.mkdirSync(dst, { recursive: true });
+  for (const entry of fs.readdirSync(src, { withFileTypes: true })) {
+    if (!filter(entry.name)) continue;
+    const from = path.join(src, entry.name);
+    const to = path.join(dst, entry.name);
+    if (entry.isDirectory()) fs.cpSync(from, to, { recursive: true });
+    else fs.copyFileSync(from, to);
+  }
+}
+
 // --- File sempre copiati ---
 copyFile("agent.js");
 copyFile("server.js");
 copyFile(".gitignore");
+copyDir("scripts", (name) => name === "doctor.js");
 
 // --- tools.js, adattato in base ai tool Google ---
 let toolsContent = fs.readFileSync(path.join(SOURCE_DIR, "tools.js"), "utf-8");
@@ -101,28 +115,43 @@ if (includeLibreChat) {
   copyFile("librechat.deploy.yaml");
   copyFile("docker-compose.deploy.yml");
   copyFile("Dockerfile");
+  copyFile("DEPLOY.md");
+  copyDir("scripts", (name) => name !== "doctor.js");
 
   let composeContent = fs.readFileSync(path.join(SOURCE_DIR, "docker-compose.yml"), "utf-8");
-  const jwtSecret = crypto.randomBytes(32).toString("hex");
-  const jwtRefreshSecret = crypto.randomBytes(32).toString("hex");
-  composeContent = composeContent
-    .replace(/JWT_SECRET=.*/, `JWT_SECRET=${jwtSecret}`)
-    .replace(/JWT_REFRESH_SECRET=.*/, `JWT_REFRESH_SECRET=${jwtRefreshSecret}`);
   fs.writeFileSync(path.join(dest, "docker-compose.yml"), composeContent);
 }
 
 // --- package.json ---
 const dependencies = {
   "@earendil-works/pi-agent-core": "^0.79.1",
+  "@earendil-works/pi-ai": "^0.79.1",
   "dotenv": "^17.4.2",
 };
 if (includeGoogle) dependencies.googleapis = "^173.0.0";
+
+const scripts = {
+  start: "node agent.js",
+  server: "node server.js",
+  setup: "node setup.js",
+  doctor: "node scripts/doctor.js",
+};
+if (includeLibreChat) {
+  Object.assign(scripts, {
+    librechat: "sh scripts/librechat.sh",
+    "librechat:down": "docker compose down",
+    deploy: "sh scripts/deploy.sh",
+    "deploy:down": "sh scripts/down.sh",
+    "deploy:logs": "sh scripts/logs.sh",
+    update: "sh scripts/update.sh",
+  });
+}
 
 const packageJson = {
   name: projectSlug,
   version: "1.0.0",
   type: "module",
-  scripts: { start: "node agent.js", server: "node server.js" },
+  scripts,
   dependencies,
 };
 fs.writeFileSync(path.join(dest, "package.json"), JSON.stringify(packageJson, null, 2) + "\n");
@@ -136,6 +165,14 @@ const envLines = [
   `PORT=3001`,
   `SYSTEM_PROMPT=Sei un assistente utile e conciso. Rispondi sempre in italiano.`,
 ];
+if (includeLibreChat) {
+  envLines.push(
+    `LIBRECHAT_PORT=3080`,
+    `ALLOW_REGISTRATION=true`,
+    `LIBRECHAT_JWT_SECRET=${crypto.randomBytes(32).toString("hex")}`,
+    `LIBRECHAT_JWT_REFRESH_SECRET=${crypto.randomBytes(32).toString("hex")}`,
+  );
+}
 if (includeGoogle) {
   envLines.push(`GOOGLE_CLIENT_ID=`, `GOOGLE_CLIENT_SECRET=`, `GOOGLE_REFRESH_TOKEN=`);
 }
@@ -158,6 +195,16 @@ const exampleLines = [
   `# Prompt di sistema dell'agente`,
   `SYSTEM_PROMPT=Sei un assistente utile e conciso. Rispondi sempre in italiano.`,
 ];
+if (includeLibreChat) {
+  exampleLines.push(
+    ``,
+    `# LibreChat / Docker Compose`,
+    `LIBRECHAT_PORT=3080`,
+    `ALLOW_REGISTRATION=true`,
+    `LIBRECHAT_JWT_SECRET=change-me-generate-with-openssl-rand-hex-32`,
+    `LIBRECHAT_JWT_REFRESH_SECRET=change-me-generate-with-openssl-rand-hex-32`,
+  );
+}
 if (includeGoogle) {
   exampleLines.push(
     ``,
@@ -175,9 +222,13 @@ const commandsTable = [
   "|---------|-------------|",
   "| `npm start` | REPL da terminale |",
   "| `npm run server` | API server compatibile OpenAI su porta 3001 |",
+  "| `npm run setup` | Configura o aggiorna il file .env |",
+  "| `npm run doctor` | Controlla ambiente e configurazione |",
   ...(includeLibreChat ? [
-    "| `docker compose up -d` | LibreChat + MongoDB in background (dev) |",
-    "| `docker compose -f docker-compose.yml -f docker-compose.deploy.yml up -d --build` | Deploy completo containerizzato |",
+    "| `npm run librechat` | Avvia LibreChat + MongoDB in background |",
+    "| `npm run deploy` | Avvia stack completo containerizzato |",
+    "| `npm run deploy:logs` | Mostra i log dello stack containerizzato |",
+    "| `npm run deploy:down` | Ferma lo stack containerizzato |",
   ] : []),
 ].join("\n");
 
@@ -196,14 +247,16 @@ const readme = `# ${projectName}
 ## Setup
 
 \`\`\`bash
-node setup.js      # configura le API key e (se attivato) l'OAuth Google
+npm install
+npm run setup      # configura le API key e (se attivato) l'OAuth Google
+npm run doctor     # controlla ambiente e configurazione
 npm start          # oppure: npm run server
 \`\`\`
 
 ## Comandi
 
 ${commandsTable}
-${googleSection}
+${includeLibreChat ? "\nVedi anche `DEPLOY.md` per le modalita LibreChat e stack containerizzato.\n" : ""}${googleSection}
 ## Aggiungere tool
 
 Definisci un tool in \`tools.js\` e aggiungilo all'array \`tools\` esportato.

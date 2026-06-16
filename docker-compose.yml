@@ -1,25 +1,41 @@
 services:
   mongodb:
     image: mongo:7
-    restart: always
+    restart: unless-stopped
     volumes:
       - mongodb-data:/data/db
 
   librechat:
     image: ghcr.io/danny-avila/librechat:latest
-    restart: always
+    restart: unless-stopped
     ports:
-      - "3080:3080"
+      - "${LIBRECHAT_PORT:-3080}:3080"
     depends_on:
       - mongodb
     environment:
       - MONGO_URI=mongodb://mongodb:27017/LibreChat
-      - ALLOW_REGISTRATION=true
+      - ALLOW_REGISTRATION=${ALLOW_REGISTRATION:-true}
+      - ALLOW_PASSWORD_RESET=${ALLOW_PASSWORD_RESET:-true}
+      - DOMAIN_CLIENT=${DOMAIN_CLIENT:-http://localhost:3080}
+      - DOMAIN_SERVER=${DOMAIN_SERVER:-http://localhost:3080}
       - NO_INDEX=true
-      - JWT_SECRET=c56f85b23538f4287dfcfe927e66c8cc6a1c4be6c876411fb530456284a61472
-      - JWT_REFRESH_SECRET=d08273ccf5e2dc043094a6ffdcd3fa3fcfb16173b091608d9c7408d171441f4c
+      - JWT_SECRET=${LIBRECHAT_JWT_SECRET}
+      - JWT_REFRESH_SECRET=${LIBRECHAT_JWT_REFRESH_SECRET}
+      - EMAIL_SERVICE=${EMAIL_SERVICE:-}
+      - EMAIL_HOST=${EMAIL_HOST:-}
+      - EMAIL_PORT=${EMAIL_PORT:-587}
+      - EMAIL_ENCRYPTION=${EMAIL_ENCRYPTION:-starttls}
+      - EMAIL_USERNAME=${EMAIL_USERNAME:-}
+      - EMAIL_PASSWORD=${EMAIL_PASSWORD:-}
+      - EMAIL_FROM=${EMAIL_FROM:-}
+      - EMAIL_FROM_NAME=${EMAIL_FROM_NAME:-Pi Agent}
+      - OLLAMA_HOST=${OLLAMA_HOST:-}
     volumes:
       - ./librechat.yaml:/app/librechat.yaml:ro
+      - librechat-uploads:/app/uploads
+      - librechat-logs:/app/logs
 
 volumes:
   mongodb-data:
+  librechat-uploads:
+  librechat-logs:
