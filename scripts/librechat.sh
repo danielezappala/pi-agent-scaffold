@@ -8,6 +8,15 @@ fi
 
 PORT="${LIBRECHAT_PORT:-3080}"
 
+# Controlla se Docker è disponibile
+if ! docker info > /dev/null 2>&1; then
+  echo "Errore: Docker non è in esecuzione o non è installato." >&2
+  echo "" >&2
+  echo "Installa Docker Desktop da: https://www.docker.com/products/docker-desktop" >&2
+  echo "Dopo l'installazione avvia Docker Desktop e riprova." >&2
+  exit 1
+fi
+
 # Controlla se la porta è già occupata
 if lsof -ti :"$PORT" > /dev/null 2>&1; then
   echo "Errore: la porta $PORT è già in uso." >&2
