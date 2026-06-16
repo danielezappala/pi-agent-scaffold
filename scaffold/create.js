@@ -112,15 +112,84 @@ copyFile("setup.js");
 
 // --- LibreChat + Docker (opzionali) ---
 if (includeLibreChat) {
-  copyFile("librechat.yaml");
   copyFile("librechat.deploy.yaml");
   copyFile("docker-compose.deploy.yml");
   copyFile("Dockerfile");
   copyFile("DEPLOY.md");
   copyDir("scripts", (name) => name !== "doctor.js");
 
-  let composeContent = fs.readFileSync(path.join(SOURCE_DIR, "docker-compose.yml"), "utf-8");
-  fs.writeFileSync(path.join(dest, "docker-compose.yml"), composeContent);
+  // librechat.yaml — generato dinamicamente
+  const ollamaEndpoint = includeOllama ? `
+    - name: "Ollama"
+      apiKey: "ollama"
+      baseURL: "\${OLLAMA_HOST:-http://host.docker.internal:11434}/v1"
+      models:
+        default: ["llama3.2", "mistral", "phi4"]
+        fetch: true
+      titleConvo: true
+      titleModel: "current_model"
+      modelDisplayLabel: "Ollama"
+      dropParams: ["user"]` : "";
+
+  fs.writeFileSync(path.join(dest, "librechat.yaml"), `version: 1.3.5
+cache: true
+endpoints:
+  custom:
+    - name: "Pi Agent"
+      apiKey: "none"
+      baseURL: "http://host.docker.internal:3001/v1"
+      models:
+        default: ["pi-agent"]
+        fetch: false
+      titleConvo: true
+      titleModel: "pi-agent"
+      modelDisplayLabel: "Pi Agent"
+      dropParams: ["user", "frequency_penalty", "presence_penalty"]${ollamaEndpoint}
+`);
+
+  // docker-compose.yml — generato dinamicamente
+  const ollamaEnv = includeOllama ? `\n      - OLLAMA_HOST=\${OLLAMA_HOST:-}` : "";
+  fs.writeFileSync(path.join(dest, "docker-compose.yml"), `services:
+  mongodb:
+    image: mongo:7
+    restart: unless-stopped
+    volumes:
+      - mongodb-data:/data/db
+
+  librechat:
+    image: ghcr.io/danny-avila/librechat:latest
+    restart: unless-stopped
+    ports:
+      - "\${LIBRECHAT_PORT:-3080}:3080"
+    depends_on:
+      - mongodb
+    environment:
+      - MONGO_URI=mongodb://mongodb:27017/LibreChat
+      - ALLOW_REGISTRATION=\${ALLOW_REGISTRATION:-true}
+      - ALLOW_PASSWORD_RESET=\${ALLOW_PASSWORD_RESET:-true}
+      - DOMAIN_CLIENT=\${DOMAIN_CLIENT:-http://localhost:3080}
+      - DOMAIN_SERVER=\${DOMAIN_SERVER:-http://localhost:3080}
+      - NO_INDEX=true
+      - JWT_SECRET=\${LIBRECHAT_JWT_SECRET}
+      - JWT_REFRESH_SECRET=\${LIBRECHAT_JWT_REFRESH_SECRET}
+      - EMAIL_SERVICE=\${EMAIL_SERVICE:-}
+      - EMAIL_HOST=\${EMAIL_HOST:-}
+      - EMAIL_PORT=\${EMAIL_PORT:-587}
+      - EMAIL_ENCRYPTION=\${EMAIL_ENCRYPTION:-starttls}
+      - EMAIL_USERNAME=\${EMAIL_USERNAME:-}
+      - EMAIL_PASSWORD=\${EMAIL_PASSWORD:-}
+      - EMAIL_FROM=\${EMAIL_FROM:-}
+      - EMAIL_FROM_NAME=\${EMAIL_FROM_NAME:-Pi Agent}${ollamaEnv}
+    volumes:
+      - ./librechat.yaml:/app/librechat.yaml:ro
+      - librechat-uploads:/app/uploads
+      - librechat-logs:/app/logs
+
+volumes:
+  mongodb-data:
+  librechat-uploads:
+  librechat-logs:
+`);
 }
 
 // --- package.json ---
