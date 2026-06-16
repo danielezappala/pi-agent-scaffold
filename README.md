@@ -110,7 +110,7 @@ Il server è compatibile con qualsiasi client OpenAI (LibreChat, Open WebUI, cur
 
 ## Variabili d'ambiente
 
-Configurate nel file `.env` generato:
+Configurate tramite `npm run setup` oppure manualmente nel file `.env`:
 
 | Variabile | Default | Descrizione |
 |-----------|---------|-------------|
@@ -120,9 +120,21 @@ Configurate nel file `.env` generato:
 | `SERPER_API_KEY` | — | API key Serper per ricerca web (opzionale) |
 | `PORT` | `3001` | Porta del server |
 | `SYSTEM_PROMPT` | `Sei un assistente...` | Prompt di sistema dell'agente |
+| `LIBRECHAT_PORT` | `3080` | Porta interfaccia web LibreChat |
+| `ALLOW_REGISTRATION` | `true` | Permette la registrazione di nuovi utenti |
+| `ALLOW_PASSWORD_RESET` | `true` | Abilita il recupero password via email |
+| `LIBRECHAT_JWT_SECRET` | auto | Generato automaticamente da `setup.js` |
+| `LIBRECHAT_JWT_REFRESH_SECRET` | auto | Generato automaticamente da `setup.js` |
+| `OLLAMA_HOST` | — | URL Ollama sull'host (default: `host.docker.internal:11434`) |
+| `EMAIL_SERVICE` | — | Provider email noto (`gmail`, `hotmail`, ecc.) |
+| `EMAIL_HOST` | — | Host SMTP custom (alternativo a `EMAIL_SERVICE`) |
+| `EMAIL_PORT` | `587` | Porta SMTP |
+| `EMAIL_USERNAME` | — | Username SMTP |
+| `EMAIL_PASSWORD` | — | Password SMTP o App Password |
+| `EMAIL_FROM` | — | Indirizzo mittente email |
 | `GOOGLE_CLIENT_ID` | — | OAuth Google (se attivato) |
 | `GOOGLE_CLIENT_SECRET` | — | OAuth Google (se attivato) |
-| `GOOGLE_REFRESH_TOKEN` | — | Generato da `setup-google-auth.js` |
+| `GOOGLE_REFRESH_TOKEN` | — | Generato da `setup.js` |
 
 > Se `SERPER_API_KEY` non è impostata, la ricerca web usa DuckDuckGo come fallback (nessuna registrazione richiesta, risultati più limitati).
 
@@ -153,6 +165,23 @@ Configurate nel file `.env` generato:
 
 ---
 
+## Setup wizard
+
+`npm run setup` guida la configurazione interattiva di tutto lo stack:
+
+1. **Provider e modello** — scelta guidata (Anthropic, OpenAI-compatibile)
+2. **API key** del provider
+3. **Ricerca web** — Serper opzionale, fallback DuckDuckGo
+4. **System prompt** dell'agente
+5. **LibreChat** — porta, registrazione, recupero password, JWT auto-generati
+6. **Email SMTP** — Gmail (App Password) o SMTP custom
+7. **Ollama** — rilevamento automatico su `host.docker.internal:11434`
+8. **Google Workspace** — flusso OAuth completo
+
+Il wizard preserva i valori già configurati e mostra sempre il valore attuale mascherato per i campi segreti.
+
+---
+
 ## Setup Google Workspace
 
 1. Crea un progetto su [Google Cloud Console](https://console.cloud.google.com/)
@@ -176,13 +205,20 @@ node setup-google-auth.js
 
 LibreChat fornisce un'interfaccia web chat che si connette a `server.js` tramite l'API compatibile OpenAI.
 
+### Funzionalità incluse
+
+- **Recupero password** via email SMTP (Gmail, Outlook, provider custom)
+- **Modelli locali Ollama** — se Ollama è in esecuzione sull'host, compare automaticamente come endpoint
+- **Persistenza** — chat, utenti e file caricati sopravvivono ai riavvii Docker grazie ai volumi named
+- **Registrazione utenti** configurabile (`ALLOW_REGISTRATION`)
+
 ### Sviluppo locale (raccomandato)
 
 In questa modalità LibreChat gira in Docker, `server.js` gira sull'host:
 
 ```bash
 # Terminale 1: avvia LibreChat + MongoDB
-docker compose up -d
+npm run librechat
 
 # Terminale 2: avvia pi-agent
 npm run server
@@ -192,6 +228,8 @@ open http://localhost:3080
 ```
 
 LibreChat raggiunge `server.js` tramite `host.docker.internal:3001` (configurato in `librechat.yaml`).
+
+> **macOS con Colima**: `npm run librechat` rileva automaticamente il socket Colima. Se usi Docker Desktop non è necessaria nessuna configurazione aggiuntiva.
 
 ### Deploy containerizzato (Raspberry Pi / server remoto)
 
