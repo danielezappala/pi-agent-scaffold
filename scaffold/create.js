@@ -127,7 +127,7 @@ const packageJson = {
 };
 fs.writeFileSync(path.join(dest, "package.json"), JSON.stringify(packageJson, null, 2) + "\n");
 
-// --- .env ---
+// --- .env e .env.example ---
 const envLines = [
   `PROVIDER=${provider}`,
   `MODEL=${model}`,
@@ -140,6 +140,34 @@ if (includeGoogle) {
   envLines.push(`GOOGLE_CLIENT_ID=`, `GOOGLE_CLIENT_SECRET=`, `GOOGLE_REFRESH_TOKEN=`);
 }
 fs.writeFileSync(path.join(dest, ".env"), envLines.join("\n") + "\n");
+
+const exampleLines = [
+  `# Provider AI e modello`,
+  `PROVIDER=${provider}`,
+  `MODEL=${model}`,
+  ``,
+  `# API key del provider (obbligatoria) — esegui: node setup.js`,
+  `ANTHROPIC_API_KEY=sk-ant-...`,
+  ``,
+  `# Ricerca web via Serper (opzionale — senza questa usa DuckDuckGo)`,
+  `SERPER_API_KEY=`,
+  ``,
+  `# Porta del server API`,
+  `PORT=3001`,
+  ``,
+  `# Prompt di sistema dell'agente`,
+  `SYSTEM_PROMPT=Sei un assistente utile e conciso. Rispondi sempre in italiano.`,
+];
+if (includeGoogle) {
+  exampleLines.push(
+    ``,
+    `# Google Workspace OAuth — esegui: node setup.js`,
+    `GOOGLE_CLIENT_ID=`,
+    `GOOGLE_CLIENT_SECRET=`,
+    `GOOGLE_REFRESH_TOKEN=`,
+  );
+}
+fs.writeFileSync(path.join(dest, ".env.example"), exampleLines.join("\n") + "\n");
 
 // --- README.md ---
 const commandsTable = [
