@@ -1,0 +1,25 @@
+services:
+  mongodb:
+    image: mongo:7
+    restart: always
+    volumes:
+      - mongodb-data:/data/db
+
+  librechat:
+    image: ghcr.io/danny-avila/librechat:latest
+    restart: always
+    ports:
+      - "3080:3080"
+    depends_on:
+      - mongodb
+    environment:
+      - MONGO_URI=mongodb://mongodb:27017/LibreChat
+      - ALLOW_REGISTRATION=true
+      - NO_INDEX=true
+      - JWT_SECRET=c56f85b23538f4287dfcfe927e66c8cc6a1c4be6c876411fb530456284a61472
+      - JWT_REFRESH_SECRET=d08273ccf5e2dc043094a6ffdcd3fa3fcfb16173b091608d9c7408d171441f4c
+    volumes:
+      - ./librechat.yaml:/app/librechat.yaml:ro
+
+volumes:
+  mongodb-data:
