@@ -59,6 +59,7 @@ const provider = await ask("Provider AI", "anthropic");
 const model = await ask("Modello", "claude-haiku-4-5-20251001");
 const includeGoogle = await askYesNo("Includere i tool Google Workspace (Gmail/Calendar/Drive)?", false);
 const includeLibreChat = await askYesNo("Includere lo scaffold LibreChat + Docker?", true);
+const includeOllama = includeLibreChat && await askYesNo("Includere supporto Ollama (modelli locali)?", true);
 
 rl.close();
 
@@ -169,12 +170,28 @@ if (includeLibreChat) {
   envLines.push(
     `LIBRECHAT_PORT=3080`,
     `ALLOW_REGISTRATION=true`,
+    `ALLOW_PASSWORD_RESET=true`,
     `LIBRECHAT_JWT_SECRET=${crypto.randomBytes(32).toString("hex")}`,
     `LIBRECHAT_JWT_REFRESH_SECRET=${crypto.randomBytes(32).toString("hex")}`,
   );
 }
 if (includeGoogle) {
   envLines.push(`GOOGLE_CLIENT_ID=`, `GOOGLE_CLIENT_SECRET=`, `GOOGLE_REFRESH_TOKEN=`);
+}
+if (includeOllama) {
+  envLines.push(`OLLAMA_HOST=`);
+}
+if (includeLibreChat) {
+  envLines.push(
+    `EMAIL_SERVICE=`,
+    `EMAIL_HOST=`,
+    `EMAIL_PORT=587`,
+    `EMAIL_ENCRYPTION=starttls`,
+    `EMAIL_USERNAME=`,
+    `EMAIL_PASSWORD=`,
+    `EMAIL_FROM=`,
+    `EMAIL_FROM_NAME=Pi Agent`,
+  );
 }
 fs.writeFileSync(path.join(dest, ".env"), envLines.join("\n") + "\n");
 
@@ -183,7 +200,7 @@ const exampleLines = [
   `PROVIDER=${provider}`,
   `MODEL=${model}`,
   ``,
-  `# API key del provider (obbligatoria) — esegui: node setup.js`,
+  `# API key del provider (obbligatoria) — esegui: npm run setup`,
   `ANTHROPIC_API_KEY=sk-ant-...`,
   ``,
   `# Ricerca web via Serper (opzionale — senza questa usa DuckDuckGo)`,
@@ -201,6 +218,7 @@ if (includeLibreChat) {
     `# LibreChat / Docker Compose`,
     `LIBRECHAT_PORT=3080`,
     `ALLOW_REGISTRATION=true`,
+    `ALLOW_PASSWORD_RESET=true`,
     `LIBRECHAT_JWT_SECRET=change-me-generate-with-openssl-rand-hex-32`,
     `LIBRECHAT_JWT_REFRESH_SECRET=change-me-generate-with-openssl-rand-hex-32`,
   );
@@ -208,10 +226,34 @@ if (includeLibreChat) {
 if (includeGoogle) {
   exampleLines.push(
     ``,
-    `# Google Workspace OAuth — esegui: node setup.js`,
+    `# Google Workspace OAuth — esegui: npm run setup`,
     `GOOGLE_CLIENT_ID=`,
     `GOOGLE_CLIENT_SECRET=`,
     `GOOGLE_REFRESH_TOKEN=`,
+  );
+}
+if (includeOllama) {
+  exampleLines.push(
+    ``,
+    `# Ollama — opzionale, se hai Ollama in esecuzione sull'host`,
+    `# Lascia vuoto per usare il default http://host.docker.internal:11434`,
+    `OLLAMA_HOST=`,
+  );
+}
+if (includeLibreChat) {
+  exampleLines.push(
+    ``,
+    `# Email SMTP — necessario per il recupero password di LibreChat`,
+    `# Usa EMAIL_SERVICE per provider noti (gmail, hotmail, yahoo, ecc.)`,
+    `# oppure EMAIL_HOST/EMAIL_PORT per SMTP custom`,
+    `EMAIL_SERVICE=`,
+    `EMAIL_HOST=`,
+    `EMAIL_PORT=587`,
+    `EMAIL_ENCRYPTION=starttls`,
+    `EMAIL_USERNAME=`,
+    `EMAIL_PASSWORD=`,
+    `EMAIL_FROM=noreply@example.com`,
+    `EMAIL_FROM_NAME=Pi Agent`,
   );
 }
 fs.writeFileSync(path.join(dest, ".env.example"), exampleLines.join("\n") + "\n");
@@ -238,8 +280,24 @@ const googleSection = includeGoogle ? `
 Per configurare o rinnovare l'accesso OAuth:
 
 \`\`\`bash
-node setup.js
+npm run setup
 \`\`\`
+` : "";
+
+const librechatSection = includeLibreChat ? `
+## LibreChat
+
+\`\`\`bash
+npm run librechat   # avvia LibreChat + MongoDB
+npm run server      # avvia il server Pi Agent
+open http://localhost:3080
+\`\`\`
+
+Funzionalità incluse:
+- Recupero password via email SMTP (configura le variabili \`EMAIL_*\` nel \`.env\` con \`npm run setup\`)
+${includeOllama ? "- Modelli locali Ollama — avvia Ollama sull'host, comparirà automaticamente come endpoint\n" : ""}- Persistenza chat e utenti tramite volumi Docker
+
+Vedi \`DEPLOY.md\` per il deploy containerizzato completo.
 ` : "";
 
 const readme = `# ${projectName}
@@ -248,7 +306,7 @@ const readme = `# ${projectName}
 
 \`\`\`bash
 npm install
-npm run setup      # configura le API key e (se attivato) l'OAuth Google
+npm run setup      # wizard interattivo: API key, email, Ollama, OAuth Google
 npm run doctor     # controlla ambiente e configurazione
 npm start          # oppure: npm run server
 \`\`\`
@@ -256,7 +314,7 @@ npm start          # oppure: npm run server
 ## Comandi
 
 ${commandsTable}
-${includeLibreChat ? "\nVedi anche `DEPLOY.md` per le modalita LibreChat e stack containerizzato.\n" : ""}${googleSection}
+${librechatSection}${googleSection}
 ## Aggiungere tool
 
 Definisci un tool in \`tools.js\` e aggiungilo all'array \`tools\` esportato.
