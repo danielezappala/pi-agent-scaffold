@@ -57,17 +57,7 @@ if (fs.existsSync(dest) && fs.readdirSync(dest).length > 0) {
 
 const provider = await ask("Provider AI", "anthropic");
 const model = await ask("Modello", "claude-haiku-4-5-20251001");
-const anthropicKey = await ask("ANTHROPIC_API_KEY (opzionale, invio per saltare)", "");
-const serperKey = await ask("SERPER_API_KEY per ricerca web (opzionale, invio per saltare)", "");
-
 const includeGoogle = await askYesNo("Includere i tool Google Workspace (Gmail/Calendar/Drive)?", false);
-let googleClientId = "";
-let googleClientSecret = "";
-if (includeGoogle) {
-  googleClientId = await ask("GOOGLE_CLIENT_ID (opzionale, invio per saltare)", "");
-  googleClientSecret = await ask("GOOGLE_CLIENT_SECRET (opzionale, invio per saltare)", "");
-}
-
 const includeLibreChat = await askYesNo("Includere lo scaffold LibreChat + Docker?", true);
 
 rl.close();
@@ -102,9 +92,15 @@ if (includeGoogle) {
   copyFile("setup-google-auth.js");
 }
 
+// --- setup.js (sempre incluso) ---
+copyFile("setup.js");
+
 // --- LibreChat + Docker (opzionali) ---
 if (includeLibreChat) {
   copyFile("librechat.yaml");
+  copyFile("librechat.deploy.yaml");
+  copyFile("docker-compose.deploy.yml");
+  copyFile("Dockerfile");
 
   let composeContent = fs.readFileSync(path.join(SOURCE_DIR, "docker-compose.yml"), "utf-8");
   const jwtSecret = crypto.randomBytes(32).toString("hex");
@@ -135,15 +131,57 @@ fs.writeFileSync(path.join(dest, "package.json"), JSON.stringify(packageJson, nu
 const envLines = [
   `PROVIDER=${provider}`,
   `MODEL=${model}`,
-  `ANTHROPIC_API_KEY=${anthropicKey}`,
-  `SERPER_API_KEY=${serperKey}`,
+  `ANTHROPIC_API_KEY=`,
+  `SERPER_API_KEY=`,
   `PORT=3001`,
   `SYSTEM_PROMPT=Sei un assistente utile e conciso. Rispondi sempre in italiano.`,
 ];
 if (includeGoogle) {
-  envLines.push(`GOOGLE_CLIENT_ID=${googleClientId}`, `GOOGLE_CLIENT_SECRET=${googleClientSecret}`, `GOOGLE_REFRESH_TOKEN=`);
+  envLines.push(`GOOGLE_CLIENT_ID=`, `GOOGLE_CLIENT_SECRET=`, `GOOGLE_REFRESH_TOKEN=`);
 }
 fs.writeFileSync(path.join(dest, ".env"), envLines.join("\n") + "\n");
+
+// --- README.md ---
+const commandsTable = [
+  "| Comando | Descrizione |",
+  "|---------|-------------|",
+  "| `npm start` | REPL da terminale |",
+  "| `npm run server` | API server compatibile OpenAI su porta 3001 |",
+  ...(includeLibreChat ? [
+    "| `docker compose up -d` | LibreChat + MongoDB in background (dev) |",
+    "| `docker compose -f docker-compose.yml -f docker-compose.deploy.yml up -d --build` | Deploy completo containerizzato |",
+  ] : []),
+].join("\n");
+
+const googleSection = includeGoogle ? `
+## Google Workspace
+
+Per configurare o rinnovare l'accesso OAuth:
+
+\`\`\`bash
+node setup.js
+\`\`\`
+` : "";
+
+const readme = `# ${projectName}
+
+## Setup
+
+\`\`\`bash
+node setup.js      # configura le API key e (se attivato) l'OAuth Google
+npm start          # oppure: npm run server
+\`\`\`
+
+## Comandi
+
+${commandsTable}
+${googleSection}
+## Aggiungere tool
+
+Definisci un tool in \`tools.js\` e aggiungilo all'array \`tools\` esportato.
+Ogni tool richiede: \`name\`, \`label\`, \`description\`, \`parameters\`, \`execute\`.
+`;
+fs.writeFileSync(path.join(dest, "README.md"), readme);
 
 console.log(`\nProgetto creato in: ${dest}`);
 console.log("Eseguo npm install...\n");
@@ -154,10 +192,11 @@ if (install.status !== 0) {
   process.exit(install.status ?? 1);
 }
 
-console.log(`\nFatto! Prossimi passi:\n`);
-console.log(`  cd ${dest}`);
-if (!anthropicKey) console.log(`  # imposta ANTHROPIC_API_KEY in .env`);
-console.log(`  npm start          # REPL da terminale`);
-console.log(`  npm run server     # API stile OpenAI su porta 3001`);
-if (includeGoogle) console.log(`  node setup-google-auth.js   # autenticazione Google Workspace`);
-if (includeLibreChat) console.log(`  docker compose up -d        # avvia LibreChat + MongoDB`);
+console.log(`\nProgetto pronto. Avvio configurazione...\n`);
+console.log("─".repeat(40));
+
+const setup = spawnSync("node", ["setup.js"], { cwd: dest, stdio: "inherit" });
+if (setup.status !== 0) {
+  console.error("\nsetup.js ha fallito. Rieseguilo manualmente con:");
+  console.error(`  cd ${dest} && node setup.js`);
+}

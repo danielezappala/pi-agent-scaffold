@@ -1,0 +1,11 @@
+services:
+  librechat:
+    volumes:
+      - ./librechat.deploy.yaml:/app/librechat.yaml:ro
+
+  pi-agent:
+    build: .
+    restart: always
+    ports:
+      - "3001:3001"
+    env_file: .env
