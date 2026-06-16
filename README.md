@@ -4,9 +4,11 @@ Generatore interattivo di progetti **pi-agent** — un agente AI con tool use, R
 
 ## Prerequisiti
 
-- Node.js 22.19+
-- Docker (opzionale, per LibreChat)
-- API key Anthropic (o altro provider supportato)
+- **Node.js 22.19+** — [nodejs.org](https://nodejs.org)
+- **API key** del provider AI (Anthropic, OpenAI-compatibile)
+- **Docker Desktop** (solo per LibreChat) — [docker.com/products/docker-desktop](https://www.docker.com/products/docker-desktop)
+  - macOS: in alternativa a Docker Desktop puoi usare [Colima](https://github.com/abiosoft/colima) (`brew install colima && colima start`)
+  - Docker Desktop deve essere **avviato** prima di eseguire `npm run librechat`
 
 
 ## Uso consigliato per il team
