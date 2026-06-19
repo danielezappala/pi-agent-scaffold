@@ -122,9 +122,9 @@ if (includeLibreChat) {
   const ollamaEndpoint = includeOllama ? `
     - name: "Ollama"
       apiKey: "ollama"
-      baseURL: "\${OLLAMA_HOST:-http://host.docker.internal:11434}/v1"
+      baseURL: "http://host.docker.internal:11434/v1"
       models:
-        default: ["llama3.2", "mistral", "phi4"]
+        default: ["qwen2.5-coder:latest", "deepseek-coder-v2:lite"]
         fetch: true
       titleConvo: true
       titleModel: "current_model"
@@ -161,6 +161,8 @@ endpoints:
     restart: unless-stopped
     ports:
       - "\${LIBRECHAT_PORT:-3080}:3080"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     depends_on:
       - mongodb
     environment:

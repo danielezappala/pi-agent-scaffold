@@ -10,6 +10,8 @@ services:
     restart: unless-stopped
     ports:
       - "${LIBRECHAT_PORT:-3080}:3080"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     depends_on:
       - mongodb
     environment:
