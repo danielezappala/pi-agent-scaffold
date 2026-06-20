@@ -23,14 +23,10 @@ services:
       - NO_INDEX=true
       - JWT_SECRET=${LIBRECHAT_JWT_SECRET}
       - JWT_REFRESH_SECRET=${LIBRECHAT_JWT_REFRESH_SECRET}
-      - EMAIL_SERVICE=${EMAIL_SERVICE:-}
-      - EMAIL_HOST=${EMAIL_HOST:-}
-      - EMAIL_PORT=${EMAIL_PORT:-587}
-      - EMAIL_ENCRYPTION=${EMAIL_ENCRYPTION:-starttls}
-      - EMAIL_USERNAME=${EMAIL_USERNAME:-}
-      - EMAIL_PASSWORD=${EMAIL_PASSWORD:-}
-      - EMAIL_FROM=${EMAIL_FROM:-}
-      - EMAIL_FROM_NAME=${EMAIL_FROM_NAME:-Pi Agent}
+      # Verifica email disattivata: senza config EMAIL_* LibreChat
+      # verifica automaticamente i nuovi utenti alla registrazione.
+      # Per riabilitare verifica e recupero password, ripristina le
+      # variabili EMAIL_* qui sotto e assicurati che l'App Password sia valida.
       - OLLAMA_HOST=${OLLAMA_HOST:-}
     volumes:
       - ./librechat.yaml:/app/librechat.yaml:ro

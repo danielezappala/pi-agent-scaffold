@@ -4,7 +4,7 @@ endpoints:
   custom:
     - name: "Pi Agent"
       apiKey: "none"
-      baseURL: "http://host.docker.internal:3001/v1"
+      baseURL: "http://host.docker.internal:3002/v1"
       models:
         default: ["pi-agent"]
         fetch: false

@@ -69,7 +69,9 @@ Lo scaffold pone alcune domande interattive sulla struttura del progetto, esegue
 |------|-------------|
 | `agent.js` | REPL da terminale |
 | `server.js` | API server compatibile OpenAI (porta 3001) |
+| `model-config.js` | Risoluzione provider/modello/API key con fallback coerenti |
 | `tools.js` | Tool base (ora, calcolo, fetch URL, ricerca web) |
+| `tool-setup.js` | Guida setup integrazioni quando un tool non è configurato |
 | `tools-google.js` | Tool Google Workspace (opzionale) |
 | `google-auth.js` | Helper autenticazione OAuth Google (opzionale) |
 | `setup-google-auth.js` | Script setup OAuth Google (opzionale) |
@@ -118,7 +120,17 @@ Configurate tramite `npm run setup` oppure manualmente nel file `.env`:
 |-----------|---------|-------------|
 | `PROVIDER` | `anthropic` | Provider AI |
 | `MODEL` | `claude-haiku-4-5-20251001` | ID modello |
-| `ANTHROPIC_API_KEY` | — | API key Anthropic |
+| `ANTHROPIC_API_KEY` | — | API key Anthropic (se `PROVIDER=anthropic`) |
+| `OPENAI_API_KEY` | — | API key OpenAI (se `PROVIDER=openai`) |
+| `GEMINI_API_KEY` | — | API key Google Gemini (se `PROVIDER=google`) |
+| `GROQ_API_KEY` | — | API key Groq (se `PROVIDER=groq`) |
+| `OPENROUTER_API_KEY` | — | API key OpenRouter (se `PROVIDER=openrouter`) |
+| `XAI_API_KEY` | — | API key xAI (se `PROVIDER=xai`) |
+| `DEEPSEEK_API_KEY` | — | API key DeepSeek (se `PROVIDER=deepseek`) |
+| `MISTRAL_API_KEY` | — | API key Mistral (se `PROVIDER=mistral`) |
+| `CEREBRAS_API_KEY` | — | API key Cerebras (se `PROVIDER=cerebras`) |
+| `TOGETHER_API_KEY` | — | API key Together AI (se `PROVIDER=together`) |
+| `FIREWORKS_API_KEY` | — | API key Fireworks (se `PROVIDER=fireworks`) |
 | `SERPER_API_KEY` | — | API key Serper per ricerca web (opzionale) |
 | `PORT` | `3001` | Porta del server |
 | `SYSTEM_PROMPT` | `Sei un assistente...` | Prompt di sistema dell'agente |
@@ -171,8 +183,9 @@ Configurate tramite `npm run setup` oppure manualmente nel file `.env`:
 
 `npm run setup` guida la configurazione interattiva di tutto lo stack:
 
-1. **Provider e modello** — scelta guidata (Anthropic, OpenAI-compatibile)
-2. **API key** del provider
+1. **Provider e modello** — scelta guidata (Anthropic, OpenAI, Gemini, Groq, OpenRouter, xAI, DeepSeek, Mistral, Cerebras, Together, Fireworks)
+  con lista modelli e costi base (USD per 1M token) dal catalogo `@earendil-works/pi-ai`
+2. **API key provider-specifica** — il wizard salva automaticamente la variabile corretta (es. `OPENAI_API_KEY`, `GEMINI_API_KEY`, `GROQ_API_KEY`)
 3. **Ricerca web** — Serper opzionale, fallback DuckDuckGo
 4. **System prompt** dell'agente
 5. **LibreChat** — porta, registrazione, recupero password, JWT auto-generati

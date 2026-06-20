@@ -1,12 +1,11 @@
 import "dotenv/config";
 import http from "node:http";
 import { Agent } from "@earendil-works/pi-agent-core";
-import { getModel } from "@earendil-works/pi-ai";
 import { tools } from "./tools.js";
+import { resolveModel } from "./model-config.js";
 
 const PORT = Number(process.env.PORT ?? 3001);
-const PROVIDER = process.env.PROVIDER ?? "anthropic";
-const MODEL_ID = process.env.MODEL ?? "claude-sonnet-4-20250514";
+const { provider: PROVIDER, modelId: MODEL_ID, model: MODEL } = resolveModel();
 const SYSTEM_PROMPT = process.env.SYSTEM_PROMPT ?? "Sei un assistente utile e conciso. Rispondi sempre in italiano.";
 
 function extractText(content) {
@@ -91,7 +90,7 @@ const server = http.createServer(async (req, res) => {
     const agent = new Agent({
       initialState: {
         systemPrompt,
-        model: getModel(PROVIDER, MODEL_ID),
+        model: MODEL,
         tools,
         messages: history,
       },

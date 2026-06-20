@@ -1,5 +1,68 @@
 import { Type } from "@earendil-works/pi-ai";
-import { googleTools } from "./tools-google.js";
+import { googleTools, isGoogleConfigured } from "./tools-google.js";
+import { resolveModel, PROVIDER_CONFIG } from "./model-config.js";
+import { getSetupGuide } from "./tool-setup.js";
+
+function formatUsdPerMillion(value) {
+  if (typeof value !== "number" || Number.isNaN(value)) return "n/d";
+  if (value === 0) return "$0";
+  if (value >= 1) return `$${value.toFixed(2)}`;
+  if (value >= 0.01) return `$${value.toFixed(3)}`;
+  return `$${value.toFixed(4)}`;
+}
+
+export const agentConfigTool = {
+  name: "get_agent_config",
+  label: "Get Agent Config",
+  description:
+    "Returns this agent's own configuration: AI provider, model in use, system prompt and the list of available tools. Use this whenever the user asks which model or provider you use, how you are configured, or what you are able to do.",
+  parameters: Type.Object({}),
+  execute: async () => {
+    const { provider, modelId, model } = resolveModel();
+    const providerLabel = PROVIDER_CONFIG[provider]?.label ?? provider;
+    const webBackend = process.env.SERPER_API_KEY ? "Serper (Google)" : "DuckDuckGo";
+    const inCost = formatUsdPerMillion(model?.cost?.input);
+    const outCost = formatUsdPerMillion(model?.cost?.output);
+    const googleStatus = isGoogleConfigured()
+      ? "configurato (tool Gmail/Calendar/Drive attivi)"
+      : "non configurato (i tool Gmail/Calendar/Drive guidano alla configurazione quando invocati)";
+    const toolList = tools.map((t) => `- ${t.name}${t.label ? ` — ${t.label}` : ""}`).join("\n");
+    const text = [
+      `Provider: ${providerLabel} (${provider})`,
+      `Modello: ${model?.name ?? modelId} [${modelId}]`,
+      `Costo: input ${inCost} / output ${outCost} per 1M token`,
+      `System prompt: ${process.env.SYSTEM_PROMPT ?? "(default)"}`,
+      `Ricerca web: ${webBackend}`,
+      `Google Workspace: ${googleStatus}`,
+      `Tool disponibili (${tools.length}):`,
+      toolList,
+    ].join("\n");
+    return {
+      content: [{ type: "text", text }],
+      details: {
+        provider,
+        model: modelId,
+        cost: model?.cost ? { input: model.cost.input, output: model.cost.output } : null,
+        webBackend,
+        googleConfigured: isGoogleConfigured(),
+        tools: tools.map((t) => t.name),
+      },
+    };
+  },
+};
+
+export const toolSetupTool = {
+  name: "get_tool_setup",
+  label: "Get Tool Setup Guide",
+  description:
+    "Returns step-by-step instructions to configure or enable an integration that is not yet set up — Google Workspace (Gmail, Calendar, Drive) or web search. IMPORTANT: call this tool, instead of just saying you cannot do something, whenever the user asks to use a feature whose tools are not available (e.g. reading email but no Gmail tool exists), or asks how to enable/configure/set up a tool. Then accompany the user through the returned steps one at a time, checking after each step. Pass no argument to list which integrations need configuration.",
+  parameters: Type.Object({
+    integration: Type.Optional(
+      Type.String({ description: "Integration to configure: 'google' (Gmail/Calendar/Drive) or 'web_search'. Omit to list all." }),
+    ),
+  }),
+  execute: async (_id, { integration } = {}) => getSetupGuide(integration),
+};
 
 export const getTimeTool = {
   name: "get_current_time",
@@ -138,4 +201,4 @@ export const searchWebTool = {
   },
 };
 
-export const tools = [getTimeTool, calculateTool, fetchUrlTool, searchWebTool, ...googleTools];
+export const tools = [agentConfigTool, toolSetupTool, getTimeTool, calculateTool, fetchUrlTool, searchWebTool, ...googleTools];

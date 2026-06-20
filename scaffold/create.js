@@ -85,27 +85,17 @@ function copyDir(name, filter = () => true) {
 // --- File sempre copiati ---
 copyFile("agent.js");
 copyFile("server.js");
+copyFile("model-config.js");
+copyFile("tool-setup.js");
 copyFile(".gitignore");
+copyFile(".env.example");
 copyDir("scripts", (name) => name === "doctor.js");
 
-// --- tools.js, adattato in base ai tool Google ---
-let toolsContent = fs.readFileSync(path.join(SOURCE_DIR, "tools.js"), "utf-8");
-if (!includeGoogle) {
-  toolsContent = toolsContent
-    .replace(/^import \{ googleTools \} from "\.\/tools-google\.js";\n/m, "")
-    .replace(
-      /export const tools = \[getTimeTool, calculateTool, fetchUrlTool, searchWebTool, \.\.\.googleTools\];/,
-      "export const tools = [getTimeTool, calculateTool, fetchUrlTool, searchWebTool];"
-    );
-}
-fs.writeFileSync(path.join(dest, "tools.js"), toolsContent);
-
-// --- Tool Google (opzionali) ---
-if (includeGoogle) {
-  copyFile("tools-google.js");
-  copyFile("google-auth.js");
-  copyFile("setup-google-auth.js");
-}
+// --- Tool e setup integration ---
+copyFile("tools.js");
+copyFile("tools-google.js");
+copyFile("google-auth.js");
+copyFile("setup-google-auth.js");
 
 // --- setup.js (sempre incluso) ---
 copyFile("setup.js");
@@ -199,8 +189,8 @@ const dependencies = {
   "@earendil-works/pi-agent-core": "^0.79.1",
   "@earendil-works/pi-ai": "^0.79.1",
   "dotenv": "^17.4.2",
+  "googleapis": "^173.0.0",
 };
-if (includeGoogle) dependencies.googleapis = "^173.0.0";
 
 const scripts = {
   start: "node agent.js",
@@ -228,106 +218,27 @@ const packageJson = {
 };
 fs.writeFileSync(path.join(dest, "package.json"), JSON.stringify(packageJson, null, 2) + "\n");
 
-// --- .env e .env.example ---
-const envLines = [
-  `PROVIDER=${provider}`,
-  `MODEL=${model}`,
-  `ANTHROPIC_API_KEY=`,
-  `SERPER_API_KEY=`,
-  `PORT=3001`,
-  `SYSTEM_PROMPT=Sei un assistente utile e conciso. Rispondi sempre in italiano.`,
-];
-if (includeLibreChat) {
-  envLines.push(
-    `LIBRECHAT_PORT=3080`,
-    `ALLOW_REGISTRATION=true`,
-    `ALLOW_PASSWORD_RESET=true`,
-    `LIBRECHAT_JWT_SECRET=${crypto.randomBytes(32).toString("hex")}`,
-    `LIBRECHAT_JWT_REFRESH_SECRET=${crypto.randomBytes(32).toString("hex")}`,
-  );
-}
-if (includeGoogle) {
-  envLines.push(`GOOGLE_CLIENT_ID=`, `GOOGLE_CLIENT_SECRET=`, `GOOGLE_REFRESH_TOKEN=`);
-}
-if (includeOllama) {
-  envLines.push(`OLLAMA_HOST=`);
+// --- .env derivato dal template aggiornato ---
+const envExamplePath = path.join(dest, ".env.example");
+let envContent = fs.readFileSync(envExamplePath, "utf-8");
+envContent = envContent.replace(/^PROVIDER=.*$/m, `PROVIDER=${provider}`);
+envContent = envContent.replace(/^MODEL=.*$/m, `MODEL=${model}`);
+if (!includeOllama) {
+  envContent = envContent.replace(/^OLLAMA_HOST=.*$/m, "OLLAMA_HOST=");
 }
 if (includeLibreChat) {
-  envLines.push(
-    `EMAIL_SERVICE=`,
-    `EMAIL_HOST=`,
-    `EMAIL_PORT=587`,
-    `EMAIL_ENCRYPTION=starttls`,
-    `EMAIL_USERNAME=`,
-    `EMAIL_PASSWORD=`,
-    `EMAIL_FROM=`,
-    `EMAIL_FROM_NAME=Pi Agent`,
-  );
+  envContent = envContent
+    .replace(/^LIBRECHAT_JWT_SECRET=.*$/m, `LIBRECHAT_JWT_SECRET=${crypto.randomBytes(32).toString("hex")}`)
+    .replace(/^LIBRECHAT_JWT_REFRESH_SECRET=.*$/m, `LIBRECHAT_JWT_REFRESH_SECRET=${crypto.randomBytes(32).toString("hex")}`);
 }
-fs.writeFileSync(path.join(dest, ".env"), envLines.join("\n") + "\n");
+if (!includeGoogle) {
+  envContent = envContent
+    .replace(/^GOOGLE_CLIENT_ID=.*$/m, "GOOGLE_CLIENT_ID=")
+    .replace(/^GOOGLE_CLIENT_SECRET=.*$/m, "GOOGLE_CLIENT_SECRET=")
+    .replace(/^GOOGLE_REFRESH_TOKEN=.*$/m, "GOOGLE_REFRESH_TOKEN=");
+}
 
-const exampleLines = [
-  `# Provider AI e modello`,
-  `PROVIDER=${provider}`,
-  `MODEL=${model}`,
-  ``,
-  `# API key del provider (obbligatoria) — esegui: npm run setup`,
-  `ANTHROPIC_API_KEY=sk-ant-...`,
-  ``,
-  `# Ricerca web via Serper (opzionale — senza questa usa DuckDuckGo)`,
-  `SERPER_API_KEY=`,
-  ``,
-  `# Porta del server API`,
-  `PORT=3001`,
-  ``,
-  `# Prompt di sistema dell'agente`,
-  `SYSTEM_PROMPT=Sei un assistente utile e conciso. Rispondi sempre in italiano.`,
-];
-if (includeLibreChat) {
-  exampleLines.push(
-    ``,
-    `# LibreChat / Docker Compose`,
-    `LIBRECHAT_PORT=3080`,
-    `ALLOW_REGISTRATION=true`,
-    `ALLOW_PASSWORD_RESET=true`,
-    `LIBRECHAT_JWT_SECRET=change-me-generate-with-openssl-rand-hex-32`,
-    `LIBRECHAT_JWT_REFRESH_SECRET=change-me-generate-with-openssl-rand-hex-32`,
-  );
-}
-if (includeGoogle) {
-  exampleLines.push(
-    ``,
-    `# Google Workspace OAuth — esegui: npm run setup`,
-    `GOOGLE_CLIENT_ID=`,
-    `GOOGLE_CLIENT_SECRET=`,
-    `GOOGLE_REFRESH_TOKEN=`,
-  );
-}
-if (includeOllama) {
-  exampleLines.push(
-    ``,
-    `# Ollama — opzionale, se hai Ollama in esecuzione sull'host`,
-    `# Lascia vuoto per usare il default http://host.docker.internal:11434`,
-    `OLLAMA_HOST=`,
-  );
-}
-if (includeLibreChat) {
-  exampleLines.push(
-    ``,
-    `# Email SMTP — necessario per il recupero password di LibreChat`,
-    `# Usa EMAIL_SERVICE per provider noti (gmail, hotmail, yahoo, ecc.)`,
-    `# oppure EMAIL_HOST/EMAIL_PORT per SMTP custom`,
-    `EMAIL_SERVICE=`,
-    `EMAIL_HOST=`,
-    `EMAIL_PORT=587`,
-    `EMAIL_ENCRYPTION=starttls`,
-    `EMAIL_USERNAME=`,
-    `EMAIL_PASSWORD=`,
-    `EMAIL_FROM=noreply@example.com`,
-    `EMAIL_FROM_NAME=Pi Agent`,
-  );
-}
-fs.writeFileSync(path.join(dest, ".env.example"), exampleLines.join("\n") + "\n");
+fs.writeFileSync(path.join(dest, ".env"), envContent);
 
 // --- README.md ---
 const commandsTable = [

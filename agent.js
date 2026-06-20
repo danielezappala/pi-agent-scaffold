@@ -1,18 +1,17 @@
 import "dotenv/config";
 import { Agent } from "@earendil-works/pi-agent-core";
-import { getModel } from "@earendil-works/pi-ai";
 import * as readline from "node:readline/promises";
 import { tools } from "./tools.js";
+import { resolveModel } from "./model-config.js";
 
 // --- Agent ---
 
-const PROVIDER = process.env.PROVIDER ?? "anthropic";
-const MODEL_ID = process.env.MODEL ?? "claude-sonnet-4-20250514";
+const { model } = resolveModel();
 
 const agent = new Agent({
   initialState: {
     systemPrompt: process.env.SYSTEM_PROMPT ?? "Sei un assistente utile e conciso. Rispondi sempre in italiano.",
-    model: getModel(PROVIDER, MODEL_ID),
+    model,
     tools,
   },
 });
@@ -40,7 +39,12 @@ const rl = readline.createInterface({ input: process.stdin, output: process.stdo
 console.log('Agente pronto. Digita "exit" per uscire.\n');
 
 while (true) {
-  const input = await rl.question("Tu: ");
+  let input;
+  try {
+    input = await rl.question("Tu: ");
+  } catch {
+    break; // stdin chiuso (EOF / Ctrl+D)
+  }
   if (input.trim().toLowerCase() === "exit") break;
   if (!input.trim()) continue;
 

@@ -1,6 +1,7 @@
 import { google } from "googleapis";
 import { Type } from "@earendil-works/pi-ai";
 import { createAuthClient } from "./google-auth.js";
+import { getSetupGuide } from "./tool-setup.js";
 
 function getAuth() {
   if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_REFRESH_TOKEN) {
@@ -238,7 +239,17 @@ export const driveReadFileTool = {
   },
 };
 
-export const googleTools = [
+// Google Workspace è "configurato" solo con Client ID + un refresh token plausibile.
+// Un refresh token Google non è mai un URL (es. l'URL di consenso OAuth salvato per
+// errore al posto del token): in quel caso i tool fallirebbero con `invalid_client`,
+// quindi è meglio considerarlo non configurato e non annunciarli affatto.
+export function isGoogleConfigured() {
+  const token = (process.env.GOOGLE_REFRESH_TOKEN ?? "").trim();
+  const looksLikeToken = token !== "" && !/^https?:\/\//i.test(token);
+  return !!(process.env.GOOGLE_CLIENT_ID && looksLikeToken);
+}
+
+const allGoogleTools = [
   gmailSearchTool,
   gmailReadTool,
   gmailSendTool,
@@ -247,3 +258,13 @@ export const googleTools = [
   driveListFilesTool,
   driveReadFileTool,
 ];
+
+// I tool Google restano sempre disponibili, ma se Google non è configurato la loro
+// esecuzione restituisce la guida di setup passo-passo invece di fallire con un errore
+// criptico (es. invalid_client). Così, quando l'utente prova a usare Gmail/Calendar/Drive,
+// l'agente lo accompagna automaticamente nella configurazione.
+export const googleTools = allGoogleTools.map((tool) => ({
+  ...tool,
+  execute: async (...args) =>
+    isGoogleConfigured() ? tool.execute(...args) : getSetupGuide("google"),
+}));

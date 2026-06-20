@@ -5,6 +5,8 @@ import http from "node:http";
 import crypto from "node:crypto";
 import { fileURLToPath } from "node:url";
 import * as readline from "node:readline/promises";
+import { getModels } from "@earendil-works/pi-ai";
+import { PROVIDER_CONFIG } from "./model-config.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ENV_PATH = path.join(__dirname, ".env");
@@ -83,6 +85,43 @@ async function askChoice(label, choices, current = "") {
   return choices[n - 1][0];
 }
 
+function formatUsdPerMillion(value) {
+  if (typeof value !== "number" || Number.isNaN(value)) return "n/d";
+  if (value === 0) return "$0";
+  if (value >= 1) return `$${value.toFixed(2)}`;
+  if (value >= 0.01) return `$${value.toFixed(3)}`;
+  return `$${value.toFixed(4)}`;
+}
+
+function buildModelChoices(provider, currentModel = "") {
+  const providerModels = getModels(provider) ?? [];
+  if (!providerModels.length) return [];
+
+  // Mostra una lista rapida orientata al costo per evitare output troppo lungo (es. OpenRouter).
+  const sorted = [...providerModels].sort((a, b) => {
+    const aCost = (a.cost?.input ?? 0) + (a.cost?.output ?? 0);
+    const bCost = (b.cost?.input ?? 0) + (b.cost?.output ?? 0);
+    if (aCost !== bCost) return aCost - bCost;
+    return a.id.localeCompare(b.id);
+  });
+
+  const maxItems = provider === "openrouter" ? 20 : 25;
+  const featured = sorted.slice(0, maxItems);
+
+  const choices = featured.map((model) => {
+    const inCost = formatUsdPerMillion(model.cost?.input);
+    const outCost = formatUsdPerMillion(model.cost?.output);
+    return [model.id, `${model.name ?? model.id} | in ${inCost} / out ${outCost} per 1M token`];
+  });
+
+  if (currentModel && !choices.some(([id]) => id === currentModel)) {
+    choices.unshift([currentModel, "modello attuale (non presente nella lista rapida)"]);
+  }
+
+  choices.push(["__manual__", "Inserisci manualmente un model ID"]);
+  return choices;
+}
+
 async function googleOAuthFlow(clientId, clientSecret) {
   const REDIRECT_URI = "http://localhost:3002/oauth2callback";
   const SCOPES = [
@@ -125,22 +164,45 @@ const env = parseEnv(fs.existsSync(ENV_PATH) ? fs.readFileSync(ENV_PATH, "utf-8"
 // ── 1. Provider e modello ──────────────────────────────────────────────────────
 console.log("── Modello AI ──────────────────────────────────────────────\n");
 
-const PROVIDERS = [
-  ["anthropic", "Claude (Anthropic)"],
-  ["openai",    "OpenAI / compatibile"],
-];
+const PROVIDERS = Object.entries(PROVIDER_CONFIG).map(([key, config]) => [key, config.label]);
 const provider = await askChoice("Provider", PROVIDERS, env.get("PROVIDER") ?? "anthropic");
 env.set("PROVIDER", provider);
 
-const MODEL_SUGGESTIONS = {
-  anthropic: "claude-haiku-4-5-20251001",
-  openai: "gpt-4o-mini",
-};
-const model = await ask("Modello", env.get("MODEL") ?? MODEL_SUGGESTIONS[provider] ?? "");
+const selectedProvider = PROVIDER_CONFIG[provider];
+const currentModel = env.get("MODEL") ?? selectedProvider?.defaultModel ?? "";
+const modelChoices = buildModelChoices(provider, currentModel);
+
+let model = currentModel;
+if (modelChoices.length) {
+  const selectedModel = await askChoice(
+    `Modello (${provider}) — costi base USD per 1M token`,
+    modelChoices,
+    currentModel,
+  );
+  if (selectedModel === "__manual__") {
+    model = await ask("Model ID manuale", currentModel || (selectedProvider?.defaultModel ?? ""));
+  } else {
+    model = selectedModel;
+  }
+} else {
+  model = await ask("Modello", currentModel);
+}
 env.set("MODEL", model);
 
-const apiKey = await ask("API Key del provider", env.get("ANTHROPIC_API_KEY") ?? "", { secret: true });
-env.set("ANTHROPIC_API_KEY", apiKey);
+const apiKeyEnv = selectedProvider?.apiKeyEnv;
+if (apiKeyEnv) {
+  if (provider === "ollama") {
+    if (!env.get(apiKeyEnv)) {
+      env.set(apiKeyEnv, "ollama");
+      console.log(`  ${apiKeyEnv} impostata automaticamente a 'ollama' (placeholder locale).`);
+    } else {
+      console.log(`  ${apiKeyEnv} mantenuta (placeholder per endpoint locale OpenAI-compatible).`);
+    }
+  } else {
+    const apiKey = await ask(`API Key (${apiKeyEnv})`, env.get(apiKeyEnv) ?? "", { secret: true });
+    env.set(apiKeyEnv, apiKey);
+  }
+}
 
 // ── 2. Ricerca web ─────────────────────────────────────────────────────────────
 console.log("\n── Ricerca web ────────────────────────────────────────────\n");
@@ -175,7 +237,12 @@ if (!env.get("LIBRECHAT_JWT_REFRESH_SECRET") || env.get("LIBRECHAT_JWT_REFRESH_S
   console.log("  JWT_REFRESH_SECRET generato automaticamente.");
 }
 
-// ── 5. Email SMTP ──────────────────────────────────────────────────────────────
+// ── 5. Pi Agent Server ─────────────────────────────────────────────────────────
+console.log("\n── Pi Agent Server ────────────────────────────────────────\n");
+const serverPort = await ask("Porta Pi Agent (backend)", env.get("PORT") ?? "3001");
+env.set("PORT", serverPort);
+
+// ── 6. Email SMTP ──────────────────────────────────────────────────────────────
 console.log("\n── Email SMTP (per recupero password) ────────────────────\n");
 
 const hasEmail = !!(env.get("EMAIL_USERNAME"));
@@ -207,7 +274,7 @@ if (configEmail) {
   console.log("  Email saltata — il recupero password non sarà disponibile.");
 }
 
-// ── 6. Ollama ──────────────────────────────────────────────────────────────────
+// ── 7. Ollama ──────────────────────────────────────────────────────────────────
 console.log("\n── Ollama (modelli locali, opzionale) ────────────────────\n");
 
 const hasOllama = await askYesNo("Hai Ollama installato sull'host?", !!(env.get("OLLAMA_HOST")));
@@ -221,7 +288,7 @@ if (hasOllama) {
   env.set("OLLAMA_HOST", "");
 }
 
-// ── 7. Google Workspace ────────────────────────────────────────────────────────
+// ── 8. Google Workspace ────────────────────────────────────────────────────────
 const hasGoogleCreds = !!(env.get("GOOGLE_CLIENT_ID") || env.get("GOOGLE_CLIENT_SECRET"));
 const configGoogle = await askYesNo("\nConfigurare Google Workspace (Gmail, Calendar, Drive)?", hasGoogleCreds);
 if (configGoogle) {
